@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-PT"><head><script id="cm-tema">
+<!doctype html><html lang="pt-PT"><head><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='12' fill='%231d5fd1'/%3E%3Cpath d='M7 19V5m0 1c4-3 7 3 11 0v8c-4 3-7-3-11 0' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"><script id="cm-tema">
 /* Tema claro/escuro comum a todas as páginas. "auto" segue o sistema; a escolha fica neste dispositivo. */
 window.CMTema=(()=>{
  const K='cmpTema',ORDEM=['auto','claro','escuro'],mq=matchMedia('(prefers-color-scheme: dark)');
@@ -35,6 +35,12 @@ window.CMTema=(()=>{
  addEventListener('storage',e=>{if(e.key===K)aplicar();});
  return {pref,atual,definir,ciclar,botao,aplicar};
 })();
+/* O administrador acede a todas as provas, tal como na gestão: a password dele vale nos leitores e no quadro. */
+window.cmAdminComPassword=(estado,password)=>!!password&&(estado?.utilizadores||[]).some(c=>(c.tipo==='administrador'||(c.user==='admin'&&!c.tipo))&&c.pass===password);
+/* O número entre parênteses é o ano de escolaridade equivalente: «1(10)» é o 1.º ano de um curso profissional, ou seja, o 10.º ano. */
+window.cmAnoEquivalente=ano=>{const m=String(ano??'').match(/\(\s*(\d{1,2})\s*[^)]*\)/),n=m?Number(m[1]):NaN;return n>=1&&n<=12?n:null;};
+/* O prazo das autorizações vale até ao fim do dia escolhido, na hora deste aparelho. */
+window.cmPrazoConsentimentosTerminado=(prova,agora=new Date())=>{const m=String(prova?.prazoConsentimentos||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return !!m&&agora>=new Date(+m[1],+m[2]-1,+m[3]+1);};
 /* Avisos que ficam visíveis até serem resolvidos ou fechados. */
 window.CMAvisos=(()=>{
  function mostrar(id,texto){
@@ -696,9 +702,9 @@ function escutarDadosAutomaticosCM(referencia,receber,falhar){
  body.cmp.visual-reader.visual-v2 main>header .cm-tema-btn~:is(a,button){margin-left:0!important}
 }
 @media print{footer.credit-bar,.cmp-percurso{display:none!important}}
-</style><style>.cm-aviso-fixo,html[data-tema="escuro"] .cm-aviso-fixo{position:fixed;z-index:6500;left:16px;right:16px;bottom:72px;max-width:760px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14px;border-radius:12px;background:#a32a21;color:#fff;font-weight:600;font-size:14px;line-height:1.45;box-shadow:0 8px 24px rgba(15,28,46,.3)}.cm-aviso-fixo span{flex:1 1 240px;min-width:0;color:#fff}.cm-aviso-fixo button,html[data-tema="escuro"] .cm-aviso-fixo button{min-height:44px;padding:0 14px;border:1.5px solid #fff;border-radius:10px;background:transparent;color:#fff;font:inherit;cursor:pointer}</style></head><body class="cm-visual visual-v2 visual-fita visual-reader cmp"><main>
+</style><style>.cm-aviso-fixo,html[data-tema="escuro"] .cm-aviso-fixo{position:fixed;z-index:6500;left:16px;right:16px;bottom:72px;max-width:760px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14px;border-radius:12px;background:#a32a21;color:#fff;font-weight:600;font-size:14px;line-height:1.45;box-shadow:0 8px 24px rgba(15,28,46,.3)}.cm-aviso-fixo span{flex:1 1 240px;min-width:0;color:#fff}.cm-aviso-fixo button,html[data-tema="escuro"] .cm-aviso-fixo button{min-height:44px;padding:0 14px;border:1.5px solid #fff;border-radius:10px;background:transparent;color:#fff;font:inherit;cursor:pointer}html,body.cmp.visual-reader{overflow-x:clip}</style></head><body class="cm-visual visual-v2 visual-fita visual-reader cmp"><main>
 <header><div><h1>Fita</h1><p>Corta-Mato · Validação na meta</p></div><button type="button" id="fita-trocar" hidden onclick="bloquearAcessoFita()">Trocar prova</button></header>
-<form id="fita-acesso" class="panel" onsubmit="validarAcessoFita(event)"><label for="fita-prova">Prova</label><select id="fita-prova" onchange="alterarProvaFita()"><option value="">A carregar provas…</option></select><label for="fita-password">Password de quem criou a prova</label><input type="password" id="fita-password" autocomplete="current-password" required><button type="submit" class="primary enter" id="fita-entrar">Entrar</button><p id="fita-acesso-erro" class="status error" role="alert"></p></form>
+<form id="fita-acesso" class="panel" onsubmit="validarAcessoFita(event)"><label for="fita-prova">Prova</label><select id="fita-prova" onchange="alterarProvaFita()"><option value="">A carregar provas…</option></select><label for="fita-password">Password de quem criou a prova ou de um administrador</label><input type="password" id="fita-password" autocomplete="current-password" required><button type="submit" class="primary enter" id="fita-entrar">Entrar</button><p id="fita-acesso-erro" class="status error" role="alert"></p></form>
 <p id="fita-ligacao" class="status" role="status">A ligar à plataforma…</p>
 <section id="fita-app" hidden aria-label="Validação de fitas"><p id="fita-pendentes"></p><article id="fita-cartao" class="panel" hidden><dl><dt>Dorsal</dt><dd id="fita-dorsal" class="dorsal"></dd></dl><div class="fields"><dl><dt>Escalão</dt><dd id="fita-escalao" class="escalao"></dd></dl><dl><dt>N.º de fitas</dt><dd id="fita-numero" class="fitas"></dd></dl></div><div class="actions"><button type="button" class="primary" id="fita-validar" onclick="responderFita('validar')">✓ Validar</button><button type="button" class="danger" id="fita-desclassificar" aria-label="Desclassificar" title="Desclassificar" onclick="responderFita('desclassificar')">✕</button></div></article><div id="fita-vazio" class="panel" hidden>A aguardar chegadas à meta.</div><p id="fita-feedback" role="status" aria-live="polite"></p></section>
 </main><footer class="credit-bar" role="contentinfo">Desenvolvido por&nbsp;<b>Nuno Lopes</b><span class="credit-sep" aria-hidden="true">·</span>© <span id="credit-year">2026</span> Todos os direitos reservados.</footer><script>
@@ -736,7 +742,7 @@ async function validarAcessoFita(event){
  if(!provaId){fitaEl('fita-acesso-erro').textContent='Selecione uma prova.';return;}autenticandoFita=true;renderFita();
  try{
   const snapshot=await refFita.get({source:'server'});if(!snapshot.exists)throw Error('Não existem dados da prova.');const data=snapshot.data(),proof=(data.provas || []).find(p=>p.id===provaId && !p.deleted),conta=contaFita(data,proof);
-  if(!proof || !conta || !conta.pass || conta.pass!==password)throw Error('Password incorreta ou prova indisponível.');if(fitaEl('fita-prova').value!==provaId)return;
+  if(!proof || !conta || !conta.pass || (conta.pass!==password&&!cmAdminComPassword(data,password)))throw Error('Password incorreta ou prova indisponível.');if(fitaEl('fita-prova').value!==provaId)return;
   acessoFita={provaId,user:conta.user,pass:conta.pass,authVersion:Number(conta.authVersion || 1)};fitaEl('fita-password').value='';fitaEl('fita-acesso-erro').textContent='';atualizarEstadoFita(data);
  }catch(error){fitaEl('fita-acesso-erro').textContent=error.message || 'Não foi possível aceder à prova.';fitaEl('fita-password').value='';}
  finally{autenticandoFita=false;renderFita();}
@@ -804,7 +810,7 @@ window.CMVisual=(()=>{
    b.addEventListener('keydown',event=>{if(!['ArrowDown','ArrowUp','ArrowRight','ArrowLeft','Home','End'].includes(event.key))return;event.preventDefault();const active=all('.tab-btn').filter(n=>!n.disabled);let index=active.indexOf(b);index=event.key==='Home'?0:event.key==='End'?active.length-1:(index+(['ArrowDown','ArrowRight'].includes(event.key)?1:-1)+active.length)%active.length;active[index].click();active[index].focus();});
   });
   const links=element('div','visual-sidebar-links');
-  for(const [name,url] of [['Leitor de dorsais','Leitor.html'],['Leitor de consentimentos','Consentimentos.html'],['Todas as aplicações','../../index.html']]){const a=element('a','',name+' ↗');a.href=url;a.target='_blank';a.rel='noopener';links.append(a);}aside.append(links);
+  for(const [name,url] of [['Leitor de dorsais','leitor.html'],['Leitor de consentimentos','consentimentos.html'],['Todas as aplicações','index.html']]){const a=element('a','',name+' ↗');a.href=url;a.target='_blank';a.rel='noopener';links.append(a);}aside.append(links);
   const brand=$('.brand-badge');brand.prepend(mark());rename('.brand-text-title','Corta-Mato');rename('.brand-text-sub','Organização escolar');
   const backups=$('.backup-controls'),items=all(':scope > button',backups),account=items.find(b=>b.id==='btn-menu-utilizadores');
   items.forEach(b=>{if(b.textContent.includes('Backup'))b.textContent='Exportar cópia de segurança';else if(b.textContent.includes('Importar'))b.textContent='Restaurar cópia de segurança';else if(b===account)b.textContent='Contas e utilizadores';else if(b.textContent.includes('Sair'))b.textContent='Terminar sessão';});
@@ -846,7 +852,7 @@ window.CMVisual=(()=>{
  }
  function step(panel,n,text){if(panel&&!$('.visual-reader-step',panel)){const p=element('div','visual-reader-step',text);p.dataset.step=n;panel.prepend(p);}}
  function readers(){
-  const header=$('main>header');if(header){header.prepend(mark());const home=element('a','visual-reader-home','Aplicações ↗');home.href='../../index.html';home.target='_blank';home.rel='noopener';header.append(home);}
+  const header=$('main>header');if(header){header.prepend(mark());const home=element('a','visual-reader-home','Aplicações ↗');home.href='index.html';home.target='_blank';home.rel='noopener';header.append(home);}
   if(document.body.classList.contains('visual-dorsais')){
    const proof=$('#proof')?.closest('.panel'),camera=$('#camera')?.closest('.panel'),manual=$('#manual')?.closest('.panel'),history=$('#history')?.closest('.panel');
    proof?.classList.add('visual-reader-proof');camera?.classList.add('visual-reader-camera');manual?.classList.add('visual-reader-manual');history?.classList.add('visual-reader-history');
