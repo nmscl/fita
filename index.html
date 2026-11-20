@@ -68,7 +68,8 @@ window.CMRelogio=(()=>{
 })();
 </script>
 
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#087f5b"><title>Fita · Corta-Mato</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="theme-color" content="#087f5b"><title>Fita · Corta-Mato</title>
 <style>
 :root{color-scheme:dark;--mint:#75f0c5;--muted:#9bb0cf;--line:rgba(255,255,255,.14)}*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;background:#091022;color:#f4f7ff;font:16px system-ui,-apple-system,sans-serif}main{max-width:650px;margin:auto;padding:22px 16px calc(85px + env(safe-area-inset-bottom))}header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}h1{margin:0;font-size:30px}header p{margin:5px 0 0;color:var(--muted);font-size:13px}.panel{padding:20px;border:1px solid var(--line);border-radius:18px;background:#131d36;margin:0 0 16px}label{display:block;margin:12px 0 8px;color:var(--muted);font-size:14px}input,select{width:100%;min-height:48px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#0b1224;color:#f4f7ff;font:inherit}button{min-height:50px;padding:12px 17px;border:1px solid var(--line);border-radius:12px;background:#1c2945;color:#f4f7ff;font:700 16px system-ui;cursor:pointer}button:disabled{opacity:.45;cursor:default}.primary{background:var(--mint);color:#09271e;border:0}.danger{background:#d52e49;color:white;border:0}.enter{width:100%;margin-top:16px}.status{color:var(--muted);font-size:13px;line-height:1.6;margin:12px 0}.error{color:#fda4af}.success{color:var(--mint)}#fita-pendentes{margin:0 0 14px;color:var(--muted);font-size:14px}dl{margin:0}dt{color:var(--muted);font-size:14px;margin:0 0 6px}dd{margin:0;overflow-wrap:anywhere}.dorsal{font-size:clamp(64px,18vw,110px);font-weight:900;line-height:1.1;letter-spacing:-3px}.fields{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:18px;margin-top:24px}.escalao{font-size:24px;font-weight:750}.fitas{font-size:32px;font-weight:800;color:var(--mint)}.actions{display:flex;gap:12px;margin-top:26px}.actions button{min-height:74px;font-size:23px}.actions .primary{flex:1}.actions .danger{width:90px;font-size:32px}#fita-vazio{padding:42px 20px;text-align:center;color:var(--muted);line-height:1.6}#fita-feedback{min-height:24px;line-height:1.5;font-size:15px}footer{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:#091022;border-top:1px solid var(--line);text-align:center;color:var(--muted);font-size:12px;line-height:1.5}footer strong{color:var(--mint)}@media(max-width:400px){.panel{padding:16px}.fields{grid-template-columns:minmax(0,1fr)}.actions button{font-size:20px}.actions .danger{width:76px}.escalao{font-size:22px}}
 </style><script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -1187,7 +1188,7 @@ body.cmp.visual-reader.visual-v2.fita-ecra #fita-feedback:empty{display:none}
   trocar.addEventListener('click',()=>el('fita-trocar')?.click());
   topo.append(titulo,trocar);document.body.append(topo);
  }
- function sairEcraNavegador(){if(pedimosEcraNavegador&&document.fullscreenElement)document.exitFullscreen?.().catch(()=>{});pedimosEcraNavegador=false;}
+ function sairEcraNavegador(){if(pedimosEcraNavegador&&!window.cmModoApp&&document.fullscreenElement)document.exitFullscreen?.().catch(()=>{});pedimosEcraNavegador=false;}
  function aplicar(){
   if(!topo)return;
   const deve=telemovel.matches&&!el('fita-app').hidden;
@@ -1280,6 +1281,69 @@ window.CMTermo=CMTermo;
 
 // A palavra segue a prova que esta página está a usar.
 setInterval(()=>{CMTermo.definir((()=>{try{return (estadoFita?.provas||[]).find(p=>p&&p.id===acessoFita?.provaId)?.termo||null;}catch(e){return null;}})());},800);
+</script>
+<script>window.CM_APP={nome:"Fita · Corta-Mato",curto:"Fita",letra:"F",cor:"#75f0c5"};</script>
+<style id="cm-modo-app-css">
+.cm-app-aviso{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:2147483000;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:#0f1c2e;color:#f1f5fb;box-shadow:0 10px 30px rgba(0,0,0,.45);font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.cm-app-aviso[hidden]{display:none}
+.cm-app-aviso span{flex:1}
+.cm-app-aviso button{min-height:38px;padding:0 14px;border:0;border-radius:10px;font:800 14px/1 inherit;cursor:pointer}
+.cm-app-aviso .cm-app-instalar{background:#75f0c5;color:#0b1220}
+.cm-app-aviso .cm-app-fechar{background:transparent;color:#9aa8be;padding:0 8px;font-size:20px}
+</style>
+<script id="cm-modo-app">
+// Leitores como uma app no telemóvel:
+// 1) podem ser instalados no ecrã principal e abrem sem as barras do navegador (manifesto criado aqui, sem ficheiros extra);
+// 2) no telemóvel, o primeiro toque põe a página em ecrã inteiro e ela fica assim (parar a câmara já não sai do ecrã inteiro).
+(function(){
+ const APP=window.CM_APP||{nome:document.title,curto:'Corta-Mato',letra:'C',cor:'#75f0c5'};
+ const telemovel=matchMedia('(max-width: 900px), (pointer: coarse)');
+ const instalada=()=>matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches||navigator.standalone===true;
+ const ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ window.cmModoApp=telemovel.matches;
+ telemovel.addEventListener?.('change',()=>{window.cmModoApp=telemovel.matches;});
+ function icone(t){
+  const c=document.createElement('canvas');c.width=c.height=t;const g=c.getContext('2d');
+  g.fillStyle='#0b1220';g.fillRect(0,0,t,t);g.fillStyle=APP.cor;g.beginPath();g.arc(t/2,t/2,t*.36,0,Math.PI*2);g.fill();
+  g.fillStyle='#0b1220';g.font='900 '+Math.round(t*.36)+'px Arial, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(APP.letra,t/2,t/2+t*.02);
+  return c.toDataURL('image/png');
+ }
+ try{
+  // Sem parâmetros no endereço de arranque: a sessão não fica guardada no atalho.
+  const inicio=location.origin+location.pathname;
+  const manifesto={name:APP.nome,short_name:APP.curto,start_url:inicio,scope:new URL('./',location.href).href,display:'fullscreen',display_override:['fullscreen','standalone'],orientation:'portrait',background_color:'#0b1220',theme_color:'#0b1220',
+   icons:[{src:icone(192),sizes:'192x192',type:'image/png',purpose:'any'},{src:icone(512),sizes:'512x512',type:'image/png',purpose:'any'},{src:icone(512),sizes:'512x512',type:'image/png',purpose:'maskable'}]};
+  const m=document.createElement('link');m.rel='manifest';m.href=URL.createObjectURL(new Blob([JSON.stringify(manifesto)],{type:'application/manifest+json'}));document.head.append(m);
+  const a=document.createElement('link');a.rel='apple-touch-icon';a.href=icone(180);document.head.append(a);
+ }catch(erro){console.warn('Manifesto da app indisponível.',erro);}
+ // Ecrã inteiro no primeiro toque (o navegador só o permite a partir de um toque).
+ function entrar(){
+  if(!telemovel.matches||instalada()||document.fullscreenElement||!document.documentElement.requestFullscreen)return;
+  document.documentElement.requestFullscreen({navigationUI:'hide'}).catch(()=>{});
+ }
+ document.addEventListener('pointerdown',entrar,{capture:true,passive:true});
+ // Aviso para instalar como app (uma vez por dispositivo, até ser fechado).
+ const CHAVE='cm.app.aviso.'+location.pathname;
+ let pedido=null,aviso=null;
+ function fechado(){try{return localStorage.getItem(CHAVE)==='1';}catch{return false;}}
+ function mostrar(){
+  if(!telemovel.matches||instalada()||fechado()||aviso)return;
+  const texto=document.createElement('span'),fechar=document.createElement('button');
+  texto.textContent=pedido?'Use o '+APP.curto+' como uma app, em ecrã inteiro.':ios?'Para abrir como uma app: toque em Partilhar e depois em «Adicionar ao ecrã principal».':'Para abrir como uma app: no menu ⋮ do navegador, escolha «Adicionar ao ecrã principal».';
+  fechar.type='button';fechar.className='cm-app-fechar';fechar.setAttribute('aria-label','Fechar o aviso');fechar.textContent='✕';
+  aviso=document.createElement('div');aviso.className='cm-app-aviso';aviso.setAttribute('role','status');aviso.append(texto);
+  if(pedido){const instalar=document.createElement('button');instalar.type='button';instalar.className='cm-app-instalar';instalar.textContent='Instalar';
+   instalar.addEventListener('click',async()=>{const p=pedido;pedido=null;aviso.hidden=true;try{await p.prompt();await p.userChoice;}catch{}});aviso.append(instalar);}
+  aviso.append(fechar);
+  fechar.addEventListener('click',()=>{aviso.hidden=true;try{localStorage.setItem(CHAVE,'1');}catch{}});
+  document.body.append(aviso);
+ }
+ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();pedido=e;aviso?.remove();aviso=null;mostrar();});
+ window.addEventListener('appinstalled',()=>{aviso?.remove();try{localStorage.setItem(CHAVE,'1');}catch{}});
+ // A câmara e os leitores ocupam o ecrã: o aviso esconde-se quando a página entra em ecrã inteiro.
+ document.addEventListener('fullscreenchange',()=>{if(aviso&&document.fullscreenElement)aviso.hidden=true;});
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(mostrar,1200));else setTimeout(mostrar,1200);
+})();
 </script>
 </body><!-- __EOF_INTEGRITY_CHECK_PASSED_2026__ -->
 </html>
