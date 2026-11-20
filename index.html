@@ -97,7 +97,7 @@ const CMFita=(()=>{
    if(acao==='desclassificar' && !fitas(prova,r))throw Error('Este escalão não tem fitas associadas. Só pode validar a chegada.');
   }
   if(acao==='repor' && !r.desqualificado)return {changed:false,resultado:r};
-  r.desqualificado=acao==='desclassificar';r.fita={estado:r.desqualificado?'desclassificado':'validado',revisao:revisao+1,operacao:opcoes.operacao || globalThis.crypto?.randomUUID?.() || Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)};
+  r.desqualificado=acao==='desclassificar';r.fita={estado:r.desqualificado?'desclassificado':'validado',origem:opcoes.origem||'gestao',revisao:revisao+1,operacao:opcoes.operacao || globalThis.crypto?.randomUUID?.() || Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)};
   return {changed:true,resultado:r};
  }
  function mesclar(estado,fonte){
@@ -133,7 +133,7 @@ const CMPartilhaResultados=(()=>{
  function projetar(prova){
   const alunos=prova.participantes || [],voluntarios=alunos.filter(a=>a.voluntario),porDorsal=new Map(alunos.map((a,i)=>[String(a.dorsal),{a,i}]));
   const out=campos(prova,['id','nome','nomeEscola','tituloDorsal','anoLetivo','dataProva']);
-  out.escaloesConfig=Object.fromEntries(Object.entries(prova.escaloesConfig || {}).map(([id,cfg])=>[id,campos(cfg,['nome','ativo','voltas','distanciaMetros','horaArranqueMs','horaFimMs','reinicioMs','anoMin','anoMax'])]));
+  out.escaloesConfig=Object.fromEntries(Object.entries(prova.escaloesConfig || {}).map(([id,cfg])=>[id,campos(cfg,['nome','ativo','voltas','distanciaMetros','horaArranqueMs','horaFimMs','reinicioMs','revisaoPista','anoMin','anoMax'])]));
   // Process numbers become local join keys. Unclassified pupils contribute only
   // category/count data; the public document contains no account or consent data.
   out.participantes=alunos.flatMap((a,i)=>a.voluntario?[]:[{...campos(a,['dorsal','ano','turma','escalaoId','genero','ativo','alf','nee','limitacoesFuncionais']),processo:'p'+i}]);
@@ -713,17 +713,67 @@ const firebaseConfig = {apiKey:'AIzaSyCjIzuSpPzQwBs0HIh4HI5ckL63IGzNzVk',authDom
 const fitaEl=id=>document.getElementById(id);
 let estadoFita={provas:[]},acessoFita=null,dbFita=null,refFita=null,observadorFita=null,ligacaoFita=false,enviandoFita=false,autenticandoFita=false,sequenciaEstadoFita=0;
 const provaInicialFita=new URLSearchParams(location.search).get('prova') || '';let preselecionouFita=false;
+// O acesso pertence ao separador e à prova. A credencial persiste durante recargas e suspensão.
+function sessaoDaProva(servico){
+ const chave='cm.sessao.'+servico;
+ let geracao=0,emCurso=false;
+ const administrador=c=>c&&(c.tipo==='administrador'||c.user==='admin'&&!c.tipo);
+ function credencial(data,p,conta){
+  const dono=(data.utilizadores||[]).find(c=>c.user===(p?.criador||'admin'));
+  if(!p||p.deleted||!dono?.pass||!conta?.pass||conta.user!==dono.user&&!administrador(conta))return null;
+  return {id:p.id,provaId:p.id,user:dono.user,pass:dono.pass,authVersion:Number(dono.authVersion||1),
+   operador:conta.user,segredo:conta.pass,versao:Number(conta.authVersion||1)};
+ }
+ function valida(data,p,a){
+  const atual=a&&credencial(data,p,(data.utilizadores||[]).find(c=>c.user===a.operador));
+  return !!atual&&Object.keys(atual).every(k=>atual[k]===a[k]);
+ }
+ async function assinatura(a,sal){
+  const bytes=new TextEncoder().encode(JSON.stringify([chave,sal,a.id,a.user,a.authVersion,a.pass,a.operador,a.versao,a.segredo]));
+  const hash=await crypto.subtle.digest('SHA-256',bytes);
+  return Array.from(new Uint8Array(hash),v=>v.toString(16).padStart(2,'0')).join('');
+ }
+ function sair(){geracao++;try{sessionStorage.removeItem(chave);}catch{}}
+ function iniciar(data,p,password){
+  const contas=data.utilizadores||[],dono=contas.find(c=>c.user===(p.criador||'admin'));
+  const a=credencial(data,p,dono?.pass===password?dono:contas.find(c=>administrador(c)&&c.pass===password));
+  if(!a)return null;
+  sair();const versao=geracao;
+  if(globalThis.crypto?.subtle){const sal=Array.from(crypto.getRandomValues(new Uint32Array(4))).join('-');
+   assinatura(a,sal).then(hash=>{if(geracao===versao)sessionStorage.setItem(chave,JSON.stringify({id:p.id,operador:a.operador,sal,hash}));}).catch(()=>{});}
+  return a;
+ }
+ async function retomar(estado,aceitar){
+  if(emCurso)return;
+  try{
+   const guardado=JSON.parse(sessionStorage.getItem(chave)||'null');if(!guardado)return;
+   const data=estado(),p=data.provas?.find(p=>p.id===guardado.id);
+   if(!p||!data.utilizadores?.length)return;
+   const a=credencial(data,p,data.utilizadores.find(c=>c.user===guardado.operador)),versao=geracao;
+   emCurso=true;const hash=a&&await assinatura(a,guardado.sal);
+   if(geracao!==versao)return;
+   if(!a||guardado.hash!==hash){sair();return;}
+   const ultimo=estado();if(valida(ultimo,ultimo.provas?.find(p=>p.id===a.id),a))aceitar(a);
+  }catch{}finally{emCurso=false;}
+ }
+ return {iniciar,valida,retomar,sair};
+}
+const sessaoFita=sessaoDaProva('fita'+(provaInicialFita?'.'+provaInicialFita:''));
 function contaFita(data,proof){return (data.utilizadores || []).find(c=>c.user===(proof?.criador || 'admin'));}
 function acessoFitaValido(data=estadoFita,credencial=acessoFita){
  const prova=(data.provas || []).find(p=>p.id===credencial?.provaId && !p.deleted),conta=contaFita(data,prova);
- return !!(prova && conta && credencial && conta.user===credencial.user && conta.pass===credencial.pass && Number(conta.authVersion || 1)===credencial.authVersion);
+ return sessaoFita.valida(data,prova,credencial);
 }
 function bloquearAcessoFita(mensagem=''){
- acessoFita=null;fitaEl('fita-password').value='';fitaEl('fita-feedback').textContent='';fitaEl('fita-acesso-erro').textContent=mensagem;renderFita();
+ sessaoFita.sair();acessoFita=null;fitaEl('fita-password').value='';fitaEl('fita-feedback').textContent='';fitaEl('fita-acesso-erro').textContent=mensagem;renderFita();
 }
-function alterarProvaFita(){if(acessoFita)bloquearAcessoFita();fitaEl('fita-acesso-erro').textContent='';}
+function alterarProvaFita(){sessaoFita.sair();if(acessoFita)bloquearAcessoFita();fitaEl('fita-acesso-erro').textContent='';}
 function atualizarEstadoFita(data){
  if(!Array.isArray(data?.provas))return;estadoFita=data;sequenciaEstadoFita++;
+ if(!acessoFita&&!autenticandoFita)sessaoFita.retomar(()=>estadoFita,a=>{
+  if(acessoFita||autenticandoFita||fitaEl('fita-password').value)return;
+  acessoFita=a;renderFita();
+ });
  if(acessoFita && !acessoFitaValido())bloquearAcessoFita('O acesso expirou. Introduza novamente a password da prova.');else renderFita();
 }
 function renderFita(){
@@ -744,7 +794,7 @@ async function validarAcessoFita(event){
  try{
   const snapshot=await refFita.get({source:'server'});if(!snapshot.exists)throw Error('Não existem dados da prova.');const data=snapshot.data(),proof=(data.provas || []).find(p=>p.id===provaId && !p.deleted),conta=contaFita(data,proof);
   if(!proof || !conta || !conta.pass || (conta.pass!==password&&!cmAdminComPassword(data,password)))throw Error('Password incorreta ou prova indisponível.');if(fitaEl('fita-prova').value!==provaId)return;
-  acessoFita={provaId,user:conta.user,pass:conta.pass,authVersion:Number(conta.authVersion || 1)};fitaEl('fita-password').value='';fitaEl('fita-acesso-erro').textContent='';atualizarEstadoFita(data);
+  acessoFita=sessaoFita.iniciar(data,proof,password);fitaEl('fita-password').value='';fitaEl('fita-acesso-erro').textContent='';atualizarEstadoFita(data);
  }catch(error){fitaEl('fita-acesso-erro').textContent=error.message || 'Não foi possível aceder à prova.';fitaEl('fita-password').value='';}
  finally{autenticandoFita=false;renderFita();}
 }
@@ -1090,5 +1140,82 @@ window.CMPercursoLeitor=(()=>{
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar);else iniciar();
  return {iniciar,atualizar:agendar};
 })();
-</script></body><!-- __EOF_INTEGRITY_CHECK_PASSED_2026__ -->
+</script><style id="cm-fita-ecra">
+/* Telemóveis de 390-460 px: a faixa de créditos passa a duas linhas em vez de cortar o texto. */
+@media(max-width:460px){body.cmp.visual-reader.visual-v2{--h-credit:44px}body.cmp.visual-reader.visual-v2 footer.credit-bar{white-space:normal;line-height:16px!important;font-size:11.5px!important;padding:5px 10px!important}body.cmp.visual-reader.visual-v2 footer.credit-bar .credit-sep{margin:0 4px}}
+
+/* TELEMÓVEL · depois de entrar na prova, a fita ocupa o ecrã inteiro (acima da faixa de créditos). */
+.fita-ecra-topo{display:none}
+html:has(body.fita-ecra),body.cmp.visual-reader.visual-v2.fita-ecra{overflow:hidden!important}
+body.cmp.visual-reader.visual-v2.fita-ecra .fita-ecra-topo{position:fixed;z-index:6003;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:#05080f;color:#fff;box-shadow:0 1px 0 #ffffff1f}
+.fita-ecra-titulo{flex:1;min-width:0;display:grid;gap:2px}
+.fita-ecra-titulo strong{color:#fff;font:800 17px/1.2 var(--f-body,system-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fita-ecra-titulo span{color:#c9d3e2;font:600 13px/1.3 var(--f-body,system-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.cmp.visual-reader.visual-v2.fita-ecra .fita-ecra-topo button{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:44px;margin:0;padding:0 14px!important;border:1.5px solid #ffffff8c!important;border-radius:999px!important;background:#ffffff14!important;color:#fff!important;font:700 14px var(--f-body,system-ui)!important;box-shadow:none!important;cursor:pointer;white-space:nowrap}
+body.cmp.visual-reader.visual-v2.fita-ecra .fita-ecra-topo button:focus-visible{outline:3px solid #ffd76a;outline-offset:2px}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-app{position:fixed!important;inset:var(--fita-topo,64px) 0 calc(var(--h-credit,40px) + env(safe-area-inset-bottom,0px)) 0!important;z-index:6000;display:flex!important;flex-direction:column;gap:10px;margin:0!important;padding:12px!important;background:var(--c-bg,#f3f5f8)!important;overflow:auto;overscroll-behavior:contain}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-pendentes{display:none!important}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-cartao:not([hidden]){flex:1 0 auto;display:flex!important;flex-direction:column;min-height:min(100%,420px);margin:0!important;padding:16px!important}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-cartao>.visual-reader-step{display:none!important}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-cartao>dl:first-of-type{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-dorsal{font-size:clamp(88px,min(36vw,24dvh),260px)!important;line-height:1!important;letter-spacing:-.04em!important}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-cartao .fields{margin-top:14px!important;align-items:end}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-escalao{font-size:clamp(20px,5.6vw,32px)!important;line-height:1.15}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-numero{font-size:clamp(30px,8.5vw,48px)!important;line-height:1.1}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-cartao .actions{margin-top:16px!important}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-cartao .actions button{min-height:clamp(76px,12dvh,110px)!important;font-size:clamp(23px,6.5vw,30px)!important}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-cartao .actions .danger{width:clamp(90px,26vw,130px)!important}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-vazio:not([hidden]){flex:1 0 auto;display:grid!important;place-items:center;margin:0!important;font-size:clamp(18px,5vw,24px)!important}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-feedback{flex:none;margin:0!important;text-align:center;font-weight:700}
+body.cmp.visual-reader.visual-v2.fita-ecra #fita-feedback:empty{display:none}
+</style>
+<script id="cm-fita-ecra-js">
+/* Telemóvel: depois de entrar na prova, a fita ocupa o ecrã inteiro. Só apresentação. */
+(()=>{
+ const el=id=>document.getElementById(id);
+ const telemovel=matchMedia('(max-width: 900px), (pointer: coarse)');
+ let topo=null,nomeProva=null,pendentes=null,emEcra=false,pedimosEcraNavegador=false,iniciado=false;
+ function criar(){
+  if(topo||!el('fita-app'))return;
+  topo=document.createElement('div');topo.className='fita-ecra-topo';
+  const titulo=document.createElement('div');titulo.className='fita-ecra-titulo';
+  nomeProva=document.createElement('strong');pendentes=document.createElement('span');titulo.append(nomeProva,pendentes);
+  const trocar=document.createElement('button');trocar.type='button';
+  // Com um SVG lá dentro, a camada visual da página não acrescenta outro ícone.
+  trocar.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>';
+  trocar.append(document.createTextNode('Trocar prova'));
+  trocar.addEventListener('click',()=>el('fita-trocar')?.click());
+  topo.append(titulo,trocar);document.body.append(topo);
+ }
+ function sairEcraNavegador(){if(pedimosEcraNavegador&&document.fullscreenElement)document.exitFullscreen?.().catch(()=>{});pedimosEcraNavegador=false;}
+ function aplicar(){
+  if(!topo)return;
+  const deve=telemovel.matches&&!el('fita-app').hidden;
+  if(deve!==emEcra){emEcra=deve;document.body.classList.toggle('fita-ecra',deve);if(!deve)sairEcraNavegador();}
+  if(emEcra){
+   nomeProva.textContent=el('fita-prova')?.selectedOptions?.[0]?.textContent?.trim()||'Fita';
+   pendentes.textContent=el('fita-pendentes')?.textContent?.trim()||'';
+   document.body.style.setProperty('--fita-topo',topo.offsetHeight+'px');
+  }
+ }
+ function iniciar(){
+  if(iniciado)return;criar();if(!topo)return;iniciado=true;
+  // O ecrã inteiro do navegador tem de ser pedido no próprio toque em «Entrar».
+  el('fita-entrar')?.addEventListener('click',()=>{
+   if(!telemovel.matches||!el('fita-prova')?.value||!el('fita-password')?.value||document.fullscreenElement||!document.documentElement.requestFullscreen)return;
+   pedimosEcraNavegador=true;
+   document.documentElement.requestFullscreen({navigationUI:'hide'}).catch(()=>{pedimosEcraNavegador=false;});
+   // Se a password estiver errada, sai do ecrã inteiro do navegador.
+   setTimeout(()=>{if(!emEcra)sairEcraNavegador();},4000);
+  },{capture:true});
+  const observar=new MutationObserver(aplicar);
+  if(el('fita-app'))observar.observe(el('fita-app'),{attributes:true,attributeFilter:['hidden']});
+  for(const id of ['fita-pendentes','fita-prova'])if(el(id))observar.observe(el(id),{childList:true,characterData:true,subtree:true});
+  telemovel.addEventListener?.('change',aplicar);window.addEventListener('resize',aplicar);
+  aplicar();
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',iniciar);else iniciar();
+})();
+</script>
+</body><!-- __EOF_INTEGRITY_CHECK_PASSED_2026__ -->
 </html>
